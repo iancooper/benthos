@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -28,7 +30,7 @@ func dropOnOutputSpec() *service.ConfigSpec {
 		Stable().
 		Categories("Utility").
 		Summary(`Attempts to write messages to a child output and if the write fails for one of a list of configurable reasons the message is dropped (acked) instead of being reattempted (or nacked).`).
-		Description(`Regular Benthos outputs will apply back pressure when downstream services aren't accessible, and Benthos retries (or nacks) all messages that fail to be delivered. However, in some circumstances, or for certain output types, we instead might want to relax these mechanisms, which is when this output becomes useful.`).
+		Description(`Regular Redpanda Connect outputs will apply back pressure when downstream services aren't accessible, and Redpanda Connect retries (or nacks) all messages that fail to be delivered. However, in some circumstances, or for certain output types, we instead might want to relax these mechanisms, which is when this output becomes useful.`).
 		Example(
 			"Dropping failed HTTP requests",
 			"In this example we have a fan_out broker, where we guarantee delivery to our Kafka output, but drop messages if they fail our secondary HTTP client output.",
@@ -285,8 +287,8 @@ func (d *dropOnWriter) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
-func (d *dropOnWriter) Connected() bool {
-	return d.wrapped.Connected()
+func (d *dropOnWriter) ConnectionStatus() component.ConnectionStatuses {
+	return d.wrapped.ConnectionStatus()
 }
 
 func (d *dropOnWriter) TriggerCloseNow() {

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package bundle
 
 import (
@@ -94,4 +96,39 @@ func (s *ScannerSet) DocsFor(name string) (docs.ComponentSpec, bool) {
 		return docs.ComponentSpec{}, false
 	}
 	return c.spec, true
+}
+
+// Without creates a clone of the set excluding a variadic list of components.
+func (s *ScannerSet) Without(names ...string) *ScannerSet {
+	newSet := &ScannerSet{
+		specs: map[string]scannerSpec{},
+	}
+	nameMap := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		nameMap[n] = struct{}{}
+	}
+	for k, v := range s.specs {
+		if _, exists := nameMap[k]; exists {
+			continue
+		}
+		newSet.specs[k] = v
+	}
+	return newSet
+}
+
+// With creates a clone of the set including a variadic list of components.
+func (s *ScannerSet) With(names ...string) *ScannerSet {
+	newSet := &ScannerSet{
+		specs: map[string]scannerSpec{},
+	}
+	nameMap := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		nameMap[n] = struct{}{}
+	}
+	for k, v := range s.specs {
+		if _, exists := nameMap[k]; exists {
+			newSet.specs[k] = v
+		}
+	}
+	return newSet
 }

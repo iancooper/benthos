@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package httpserver
 
 import (
@@ -122,6 +124,7 @@ func BasicAuthFieldSpec() docs.FieldSpec {
 	).Advanced()
 }
 
+// BasicAuthConfigFromParsed extracts the auth fields from the parsed config and returns a BasicAuth config.
 func BasicAuthConfigFromParsed(pConf *docs.ParsedConfig) (conf BasicAuthConfig, err error) {
 	pConf = pConf.Namespace(fieldBasicAuth)
 	if conf.Enabled, err = pConf.FieldBool(fieldBasicAuthEnabled); err != nil {

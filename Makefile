@@ -2,6 +2,15 @@
 
 GOMAXPROCS ?= 1
 
+build:
+	@go build ./cmd/benthos
+
+build-wasm:
+	@GOOS=js GOARCH=wasm go build -o benthos.wasm ./cmd/benthos
+
+install:
+	@go install ./cmd/benthos
+
 deps:
 	@go mod tidy
 

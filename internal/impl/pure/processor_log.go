@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -49,7 +51,7 @@ pipeline:
 `+"```"+`
 `).
 		Fields(
-			service.NewStringEnumField(logPFieldLevel, "FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE", "ALL").
+			service.NewStringEnumField(logPFieldLevel, "ERROR", "WARN", "INFO", "DEBUG", "TRACE", "ALL").
 				Description("The log level to use.").
 				LintRule(``).
 				Default("INFO"),
@@ -117,7 +119,7 @@ func newLogProcessor(messageStr, levelStr, fieldsMappingStr string, depFields ma
 		return nil, fmt.Errorf("failed to parse message expression: %v", err)
 	}
 	l := &logProcessor{
-		logger:  mgr.Logger(),
+		logger:  mgr.Logger().With("custom_source", true),
 		level:   levelStr,
 		fields:  map[string]*field.Expression{},
 		message: message,

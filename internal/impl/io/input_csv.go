@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package io
 
 import (
@@ -70,7 +72,7 @@ Note: The `+"`header`"+` field is only set when `+"`parse_header_row`"+` is `+"`
 
 === Output CSV column order
 
-When xref:guides:bloblang/advanced.adoc#creating-csv[creating CSV] from Benthos messages, the columns must be sorted lexicographically to make the output deterministic. Alternatively, when using the `+"`csv`"+` input, one can leverage the `+"`header`"+` metadata field to retrieve the column order:
+When xref:guides:bloblang/advanced.adoc#creating-csv[creating CSV] from Redpanda Connect messages, the columns must be sorted lexicographically to make the output deterministic. Alternatively, when using the `+"`csv`"+` input, one can leverage the `+"`header`"+` metadata field to retrieve the column order:
 
 `+"```yaml"+`
 input:

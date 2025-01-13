@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package input_test
 
 import (
@@ -9,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	iprocessor "github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -26,8 +29,10 @@ func (m *mockInput) TransactionChan() <-chan message.Transaction {
 	return m.ts
 }
 
-func (m *mockInput) Connected() bool {
-	return true
+func (m *mockInput) ConnectionStatus() component.ConnectionStatuses {
+	return component.ConnectionStatuses{
+		component.ConnectionActive(component.NoopObservability()),
+	}
 }
 
 func (m *mockInput) TriggerStopConsuming() {

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package httpclient
 
 import (
@@ -29,12 +31,13 @@ type Client struct {
 	clientCancel func()
 
 	// Request execution and retry logic
-	rateLimit     string
-	numRetries    int
-	retryThrottle *throttle.Type
-	backoffOn     map[int]struct{}
-	dropOn        map[int]struct{}
-	successOn     map[int]struct{}
+	rateLimit       string
+	numRetries      int
+	followRedirects bool
+	retryThrottle   *throttle.Type
+	backoffOn       map[int]struct{}
+	dropOn          map[int]struct{}
+	successOn       map[int]struct{}
 
 	// Response extraction
 	metaExtractFilter *service.MetadataFilter
@@ -73,6 +76,13 @@ func NewClientFromOldConfig(conf OldConfig, mgr *service.Resources, opts ...Requ
 
 	if conf.Timeout > 0 {
 		h.client.Timeout = conf.Timeout
+	}
+
+	h.followRedirects = conf.FollowRedirects
+	if !h.followRedirects {
+		h.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
 	}
 
 	if conf.TLSEnabled && conf.TLSConf != nil {
@@ -291,6 +301,9 @@ func (h *Client) checkStatus(code int) (succeeded bool, retStrat retryStrategy) 
 		return false, retryBackoff
 	}
 	if _, exists := h.successOn[code]; exists {
+		return true, noRetry
+	}
+	if !h.followRedirects && code >= 300 && code <= 399 {
 		return true, noRetry
 	}
 	if code < 200 || code > 299 {

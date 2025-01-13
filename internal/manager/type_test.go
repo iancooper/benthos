@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package manager_test
 
 import (
@@ -538,4 +540,42 @@ func TestManagerPipeGetSet(t *testing.T) {
 	if p != t3 {
 		t.Error("Wrong transaction chan returned")
 	}
+}
+
+type testKeyTypeA int
+type testKeyTypeB int
+
+const testKeyA testKeyTypeA = iota
+const testKeyB testKeyTypeB = iota
+
+func TestManagerGenericResources(t *testing.T) {
+	mgr, err := manager.New(manager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr.SetGeneric(testKeyA, "foo")
+	mgr.SetGeneric(testKeyB, "bar")
+
+	_, exists := mgr.GetGeneric("not a key")
+	assert.False(t, exists)
+
+	v, exists := mgr.GetGeneric(testKeyA)
+	assert.True(t, exists)
+	assert.Equal(t, "foo", v)
+
+	v, exists = mgr.GetGeneric(testKeyB)
+	assert.True(t, exists)
+	assert.Equal(t, "bar", v)
+}
+
+func TestManagerGenericGetOrSet(t *testing.T) {
+	mgr, err := manager.New(manager.NewResourceConfig())
+	require.NoError(t, err)
+
+	v, loaded := mgr.GetOrSetGeneric(testKeyA, "foo")
+	assert.False(t, loaded)
+	assert.Equal(t, "foo", v)
+
+	v, loaded = mgr.GetOrSetGeneric(testKeyA, "bar")
+	assert.True(t, loaded)
+	assert.Equal(t, "foo", v)
 }

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -29,7 +31,7 @@ The functionality of this processor depends on being applied across messages tha
 			`concatenate`: `Join the raw contents of each message into a single binary message.`,
 			`tar`:         `Archive messages to a unix standard tape archive.`,
 			`zip`:         `Archive messages to a zip file.`,
-			`binary`:      `Archive messages to a https://github.com/benthosdev/benthos/blob/main/internal/message/message.go#L96[binary blob format].`,
+			`binary`:      `Archive messages to a https://github.com/redpanda-data/benthos/blob/main/internal/message/message.go#L96[binary blob format^].`,
 			`lines`:       `Join the raw contents of each message and insert a line break between each one.`,
 			`json_array`:  `Attempt to parse each message as a JSON document and append the result to an array, which becomes the contents of the resulting message.`,
 		}).Description("The archiving format to apply.")).
@@ -268,7 +270,7 @@ func (d *archive) createHeaderFunc(msg service.MessageBatch) func(int, *service.
 		bBytes, _ := body.AsBytes()
 		name, err := msg.TryInterpolatedString(index, d.path)
 		if err != nil {
-			d.log.Errorf("Name interpolation error: %w", err)
+			d.log.Errorf("Name interpolation error: %s", err)
 		}
 		return fakeInfo{
 			name: name,

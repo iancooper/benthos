@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -18,10 +20,10 @@ type Processor interface {
 	// When an error is returned the input message will continue down the
 	// pipeline but will be marked with the error with *message.SetError, and
 	// metrics and logs will be emitted. The failed message can then be handled
-	// with the patterns outlined in https://www.docs.redpanda.com/redpanda-connect/configuration/error_handling.
+	// with the patterns outlined in https://docs.redpanda.com/redpanda-connect/configuration/error_handling.
 	//
 	// The Message types returned MUST be derived from the provided message, and
-	// CANNOT be custom implementations of Message. In order to copy the
+	// CANNOT be custom instantiations of Message. In order to copy the
 	// provided message use the Copy method.
 	Process(context.Context, *Message) (MessageBatch, error)
 
@@ -53,7 +55,7 @@ type BatchProcessor interface {
 	// with a nil error.
 	//
 	// The Message types returned MUST be derived from the provided messages,
-	// and CANNOT be custom implementations of Message. In order to copy the
+	// and CANNOT be custom instantiations of Message. In order to copy the
 	// provided messages use the Copy method.
 	ProcessBatch(context.Context, MessageBatch) ([]MessageBatch, error)
 

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -48,7 +50,7 @@ The broker pattern determines the way in which messages are allocated and can be
 
 === `+"`fan_out`"+`
 
-With the fan out pattern all outputs will be sent every message that passes through Benthos in parallel.
+With the fan out pattern all outputs will be sent every message that passes through Redpanda Connect in parallel.
 
 If an output applies back pressure it will block all subsequent messages, and if an output fails to send a message it will be retried continuously until completion or service shut down. This mechanism is in place in order to prevent one bad output from causing a larger retry loop that results in a good output from receiving unbounded message duplicates.
 
@@ -81,9 +83,14 @@ The greedy pattern results in higher output throughput at the cost of potentiall
 				Advanced().
 				Default(1),
 			service.NewStringEnumField(boFieldPattern,
-				"fan_out", "fan_out_fail_fast", "fan_out_sequential", "fan_out_sequential_fail_fast", "round_robin", "greedy").
+				string(service.OutputBrokerPatternFanOut),
+				string(service.OutputBrokerPatternFanOutFailFast),
+				string(service.OutputBrokerPatternFanOutSequential),
+				string(service.OutputBrokerPatternFanOutSequentialFailFast),
+				string(service.OutputBrokerPatternRoundRobin),
+				string(service.OutputBrokerPatternGreedy)).
 				Description("The brokering pattern to use.").
-				Default("fan_out"),
+				Default(string(service.OutputBrokerPatternFanOut)),
 			service.NewOutputListField(boFieldOutputs).
 				Description("A list of child outputs to broker."),
 			service.NewBatchPolicyField(boFieldBatching),
@@ -140,10 +147,10 @@ func brokerOutputFromParsed(conf *service.ParsedConfig, res *service.Resources) 
 		}
 	}
 
-	_, isRetryWrapped := map[string]struct{}{
-		"fan_out":            {},
-		"fan_out_sequential": {},
-	}[pattern]
+	_, isRetryWrapped := map[service.OutputBrokerPatternType]struct{}{
+		service.OutputBrokerPatternFanOut:           {},
+		service.OutputBrokerPatternFanOutSequential: {},
+	}[service.OutputBrokerPatternType(pattern)]
 
 	var outputs []output.Streamed
 	{
@@ -191,14 +198,14 @@ func brokerOutputFromParsed(conf *service.ParsedConfig, res *service.Resources) 
 	}
 
 	var b output.Streamed
-	switch pattern {
-	case "fan_out", "fan_out_fail_fast":
+	switch service.OutputBrokerPatternType(pattern) {
+	case service.OutputBrokerPatternFanOut, service.OutputBrokerPatternFanOutFailFast:
 		b, err = newFanOutOutputBroker(outputs)
-	case "fan_out_sequential", "fan_out_sequential_fail_fast":
+	case service.OutputBrokerPatternFanOutSequential, service.OutputBrokerPatternFanOutSequentialFailFast:
 		b, err = newFanOutSequentialOutputBroker(outputs)
-	case "round_robin":
+	case service.OutputBrokerPatternRoundRobin:
 		b, err = newRoundRobinOutputBroker(outputs)
-	case "greedy":
+	case service.OutputBrokerPatternGreedy:
 		b, err = newGreedyOutputBroker(outputs)
 	default:
 		return nil, fmt.Errorf("broker pattern was not recognised: %v", pattern)

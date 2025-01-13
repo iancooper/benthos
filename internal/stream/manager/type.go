@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package manager
 
 import (
@@ -125,6 +127,17 @@ var (
 
 //------------------------------------------------------------------------------
 
+// ConnectionStatus returns the aggregate connection status of all stream inputs
+// and outputs.
+func (m *Type) ConnectionStatus() (s component.ConnectionStatuses) {
+	m.lock.Lock()
+	for _, t := range m.streams {
+		s = append(s, t.strm.ConnectionStatus()...)
+	}
+	m.lock.Unlock()
+	return
+}
+
 // Create attempts to construct and run a new stream under a unique ID. If the
 // ID already exists an error is returned.
 func (m *Type) Create(id string, conf stream.Config) error {
@@ -216,7 +229,9 @@ func (m *Type) Delete(ctx context.Context, id string) error {
 	}
 
 	if err := wrapper.strm.Stop(ctx); err != nil {
-		return err
+		if !(errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+			return err
+		}
 	}
 
 	m.lock.Lock()

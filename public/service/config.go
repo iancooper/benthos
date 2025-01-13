@@ -1,9 +1,12 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
@@ -363,6 +366,13 @@ func (c *ConfigSpec) Deprecated() *ConfigSpec {
 	return c
 }
 
+// SupportLevel adds an abstract label indicating the support level of the
+// plugin.
+func (c *ConfigSpec) SupportLevel(l string) *ConfigSpec {
+	c.component.SupportLevel = l
+	return c
+}
+
 // Categories adds one or more string tags to the component, these are used for
 // arbitrarily grouping components in documentation.
 func (c *ConfigSpec) Categories(categories ...string) *ConfigSpec {
@@ -514,35 +524,6 @@ func (c *ConfigView) FormatJSON() ([]byte, error) {
 	return json.Marshal(c.component)
 }
 
-// RenderDocs creates a markdown file that documents the configuration of the
-// component config view. This markdown may include Docusaurus react elements as
-// it matches the documentation generated for the official Benthos website.
-//
-// Experimental: This method is not intended for general use and could have its
-// signature and/or behaviour changed outside of major version bumps.
-func (c *ConfigView) RenderDocs() ([]byte, error) {
-	_, rootOnly := map[string]struct{}{
-		"cache":      {},
-		"rate_limit": {},
-		"processor":  {},
-		"scanner":    {},
-	}[string(c.component.Type)]
-
-	conf := map[string]any{
-		"type": c.component.Name,
-	}
-	for k, v := range docs.ReservedFieldsByType(c.component.Type) {
-		if k == "plugin" {
-			continue
-		}
-		if v.Default != nil {
-			conf[k] = *v.Default
-		}
-	}
-
-	return c.component.AsMarkdown(c.prov, !rootOnly, conf)
-}
-
 //------------------------------------------------------------------------------
 
 // ParsedConfig represents a plugin configuration that has been validated and
@@ -558,6 +539,13 @@ type ParsedConfig struct {
 // scheme.
 func (p *ParsedConfig) EngineVersion() string {
 	return p.mgr.EngineVersion()
+}
+
+// Resources returns the resources type that has been granted to the given
+// parsed config view. Plugin implementations should generally only access and
+// preserve the resources reference they are granted in their constructors.
+func (p *ParsedConfig) Resources() *Resources {
+	return newResourcesFromManager(p.mgr)
 }
 
 // Namespace returns a version of the parsed config at a given field namespace.
@@ -717,7 +705,7 @@ func (p *ParsedConfig) FieldObjectList(path ...string) ([]*ParsedConfig, error) 
 	for i, v := range il {
 		pl[i] = &ParsedConfig{
 			i:   v,
-			mgr: p.mgr,
+			mgr: p.mgr.IntoPath(path...).IntoPath(strconv.Itoa(i)),
 		}
 	}
 	return pl, nil
@@ -737,7 +725,7 @@ func (p *ParsedConfig) FieldObjectMap(path ...string) (map[string]*ParsedConfig,
 	for k, v := range im {
 		pl[k] = &ParsedConfig{
 			i:   v,
-			mgr: p.mgr,
+			mgr: p.mgr.IntoPath(path...).IntoPath(k),
 		}
 	}
 	return pl, nil

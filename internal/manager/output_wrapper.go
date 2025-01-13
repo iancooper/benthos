@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package manager
 
 import (
@@ -45,10 +47,8 @@ func (w *outputWrapper) WriteTransaction(ctx context.Context, t message.Transact
 	return nil
 }
 
-// Connected returns a boolean indicating whether this output is currently
-// connected to its target.
-func (w *outputWrapper) Connected() bool {
-	return w.output.Connected()
+func (w *outputWrapper) ConnectionStatus() component.ConnectionStatuses {
+	return w.output.ConnectionStatus()
 }
 
 func (w *outputWrapper) TriggerStopConsuming() {

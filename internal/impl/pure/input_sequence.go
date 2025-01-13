@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -12,6 +14,7 @@ import (
 
 	"github.com/Jeffail/shutdown"
 
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -77,7 +80,7 @@ input:
 		).
 		Example(
 			"Joining Data (Simple)",
-			`Benthos can be used to join unordered data from fragmented datasets in memory by specifying a common identifier field and a number of sharded iterations. For example, given two CSV files, the first called "main.csv", which contains rows of user data:
+			`Redpanda Connect can be used to join unordered data from fragmented datasets in memory by specifying a common identifier field and a number of sharded iterations. For example, given two CSV files, the first called "main.csv", which contains rows of user data:
 
 `+"```csv"+`
 uuid,name,age
@@ -602,11 +605,11 @@ func (r *sequenceInput) TransactionChan() <-chan message.Transaction {
 	return r.transactions
 }
 
-func (r *sequenceInput) Connected() bool {
+func (r *sequenceInput) ConnectionStatus() component.ConnectionStatuses {
 	if t, _ := r.getTarget(); t != nil {
-		return t.Connected()
+		return t.ConnectionStatus()
 	}
-	return false
+	return nil
 }
 
 func (r *sequenceInput) TriggerStopConsuming() {

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package io
 
 import (
@@ -110,7 +112,7 @@ func hsoSpec() *service.ConfigSpec {
 
 Three endpoints will be registered at the paths specified by the fields `+"`path`, `stream_path` and `ws_path`"+`. Which allow you to consume a single message batch, a continuous stream of line delimited messages, or a websocket of messages for each request respectively.
 
-When messages are batched the `+"`path`"+` endpoint encodes the batch according to https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341]. This behavior can be overridden by xref:configuration:batching.adoc#post-batch-processing[archiving your batches].
+When messages are batched the `+"`path`"+` endpoint encodes the batch according to https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341^]. This behavior can be overridden by xref:configuration:batching.adoc#post-batch-processing[archiving your batches].
 
 Please note, messages are considered delivered as soon as the data is written to the client. There is no concept of at least once delivery on this output.
 
@@ -180,6 +182,7 @@ func init() {
 type httpServerOutput struct {
 	conf hsoConfig
 	log  log.Modular
+	mgr  bundle.NewManagement
 
 	mux    *mux.Router
 	server *http.Server
@@ -223,6 +226,7 @@ func newHTTPServerOutput(conf hsoConfig, mgr bundle.NewManagement) (output.Strea
 		shutSig: shutdown.NewSignaller(),
 		conf:    conf,
 		log:     mgr.Logger(),
+		mgr:     mgr,
 		mux:     gMux,
 		server:  server,
 
@@ -473,9 +477,10 @@ func (h *httpServerOutput) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
-func (h *httpServerOutput) Connected() bool {
-	// Always return true as this is fuzzy right now.
-	return true
+func (h *httpServerOutput) ConnectionStatus() component.ConnectionStatuses {
+	return component.ConnectionStatuses{
+		component.ConnectionActive(h.mgr),
+	}
 }
 
 func (h *httpServerOutput) TriggerCloseNow() {

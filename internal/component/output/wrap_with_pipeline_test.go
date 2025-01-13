@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package output_test
 
 import (
@@ -10,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
@@ -29,8 +32,10 @@ func (m *mockOutput) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
-func (m *mockOutput) Connected() bool {
-	return true
+func (m *mockOutput) ConnectionStatus() component.ConnectionStatuses {
+	return component.ConnectionStatuses{
+		component.ConnectionActive(component.NoopObservability()),
+	}
 }
 
 func (m *mockOutput) TriggerCloseNow() {

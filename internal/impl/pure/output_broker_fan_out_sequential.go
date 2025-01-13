@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -49,13 +51,11 @@ func (o *fanOutSequentialOutputBroker) Consume(transactions <-chan message.Trans
 	return nil
 }
 
-func (o *fanOutSequentialOutputBroker) Connected() bool {
+func (o *fanOutSequentialOutputBroker) ConnectionStatus() (s component.ConnectionStatuses) {
 	for _, out := range o.outputs {
-		if !out.Connected() {
-			return false
-		}
+		s = append(s, out.ConnectionStatus()...)
 	}
-	return true
+	return
 }
 
 func (o *fanOutSequentialOutputBroker) loop() {

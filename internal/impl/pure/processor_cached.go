@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -199,7 +201,7 @@ func (proc *cachedProcessor) Process(ctx context.Context, msg *service.Message) 
 	for _, b := range resultBatch {
 		skip, err := shouldSkip(b, proc.skipOn)
 		if err != nil {
-			proc.manager.Logger().Errorf("skip_on check failed: %w, caching will be skipped as a precaution", err)
+			proc.manager.Logger().Errorf("skip_on check failed: %s, caching will be skipped as a precaution", err)
 			skip = true
 		}
 		shouldCache = shouldCache && !skip
@@ -215,7 +217,7 @@ func (proc *cachedProcessor) Process(ctx context.Context, msg *service.Message) 
 	// messages.
 	result, err := cachedProcSerialiseBatch(collapsedBatch)
 	if err != nil {
-		proc.manager.Logger().Errorf("failed to serialize resulting batch for caching: %w", err)
+		proc.manager.Logger().Errorf("failed to serialize resulting batch for caching: %s", err)
 		return collapsedBatch, nil
 	}
 
@@ -224,10 +226,10 @@ func (proc *cachedProcessor) Process(ctx context.Context, msg *service.Message) 
 		setErr = cache.Set(ctx, cacheKey, result, ttl)
 	})
 	if cerr != nil {
-		proc.manager.Logger().Errorf("failed to access cache for result: %w", err)
+		proc.manager.Logger().Errorf("failed to access cache for result: %s", err)
 	}
 	if setErr != nil {
-		proc.manager.Logger().Errorf("failed to write result to cache: %w", err)
+		proc.manager.Logger().Errorf("failed to write result to cache: %s", err)
 	}
 	return collapsedBatch, nil
 }
@@ -249,7 +251,7 @@ func shouldSkip(batch service.MessageBatch, predicate *bloblang.Executor) (bool,
 		return false, nil
 	}
 
-	predResult, err := batch.BloblangQuery(0, predicate)
+	predResult, err := batch.BloblangExecutor(predicate).Query(0)
 	if err != nil {
 		return false, fmt.Errorf("failed to execute skip_on mapping: %w", err)
 	}

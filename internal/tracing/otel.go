@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package tracing
 
 import (
@@ -22,7 +24,7 @@ func GetSpan(p *message.Part) *Span {
 	return GetSpanFromContext(ctx)
 }
 
-// GetSpan returns a span within a context. Returns nil if the context doesn't
+// GetSpanFromContext returns a span within a context. Returns nil if the context doesn't
 // have a span attached.
 func GetSpanFromContext(ctx context.Context) *Span {
 	t := trace.SpanFromContext(ctx)

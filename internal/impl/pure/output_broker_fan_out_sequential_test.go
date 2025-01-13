@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -33,7 +35,7 @@ func TestBasicFanOutSequential(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
 
-	assert.True(t, oTM.Connected())
+	assert.True(t, oTM.ConnectionStatus().AllActive())
 
 	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
 	defer done()

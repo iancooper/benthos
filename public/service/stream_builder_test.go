@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service_test
 
 import (
@@ -741,7 +743,7 @@ output:
 					name:    "generate",
 					conf: `label: ""
 generate:
-    mapping: 'root = deleted()'`,
+  mapping: 'root = deleted()'`,
 				},
 				{
 					typeStr: "buffer",
@@ -794,10 +796,10 @@ output:
 					name:    "generate",
 					conf: `label: ""
 generate:
-    mapping: 'root = deleted()'
+  mapping: 'root = deleted()'
 processors:
-    - label: ""
-      mutation: 'root = "hm"'`,
+  - label: ""
+    mutation: 'root = "hm"'`,
 				},
 				{
 					typeStr: "processor",
@@ -816,8 +818,8 @@ mutation: 'root = "hm"'`,
 					conf: `label: ""
 reject: lol nah
 processors:
-    - label: ""
-      mutation: 'root = "eh"'`,
+  - label: ""
+    mutation: 'root = "eh"'`,
 				},
 				{
 					typeStr: "processor",
@@ -854,16 +856,16 @@ input:
 					name:    "dynamic",
 					conf: `label: ""
 dynamic:
-    inputs:
-        foo:
-            file:
-                paths: [aaa.txt]`,
+  inputs:
+    foo:
+      file:
+        paths: [aaa.txt]`,
 				},
 				{
 					typeStr: "input",
 					name:    "file",
 					conf: `file:
-    paths: [aaa.txt]`,
+  paths: [aaa.txt]`,
 				},
 				{
 					typeStr: "buffer",

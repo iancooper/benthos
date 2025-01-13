@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package testutil
 
 import (
@@ -34,6 +36,7 @@ func (n microReader) Read(p []byte) (int, error) {
 	return byteCount, nil
 }
 
+// ScannerTestSuite returns the test suite for scanners.
 func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details *service.ScannerSourceDetails, data []byte, expected ...string) {
 	if details == nil {
 		details = &service.ScannerSourceDetails{}

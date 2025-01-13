@@ -3,6 +3,157 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.44.0 - TBD
+
+## 4.43.0 - 2025-01-13
+
+### Added
+
+- Field `label` added to the template tests definitions. (@mihaitodor)
+- Metadata field `label` can now be utilized within a template's `mapping` field to access the label that is associated with the template instantiation in a config. (@mihaitodor)
+- `bloblang` scalar type added to template fields. (@mihaitodor)
+- Go API: Method `SetOutputBrokerPattern` added to the `StreamBuilder` type. (@mihaitodor)
+- New `error_source_name`, `error_source_label` and `error_source_path` bloblang functions. (@mihaitodor)
+- Flag `--verbose` added to the `benthos lint` and `benthos template lint` commands. (@mihaitodor)
+
+### Changed
+
+- The `branch` processor no longer emits an entry in the log at error level when the child processors throw errors. (@mihaitodor)
+- Streams and the StreamBuilder API now use `reject` by default when no output is specified in the config and `stdout` isn't registered (for example when the `io` components are not imported). (@mihaitodor)
+
+## 4.42.0 - 2024-11-29
+
+### Added
+
+- Go API: Method `Resources() *service.Resources` added to the stream builders derived `Stream` type. (@Jeffail)
+- Go API: Integration stream test opt `StreamTestOptOnResourcesInit` added for accessing the resources of test components. (@Jeffail)
+- New `exists` operator added to the `cache` processor. (@mihaitodor)
+
+## 4.41.1 - 2024-11-25
+
+### Fixed
+
+- Fixed an issue where running a CLI with a custom environment would cause imported templates to be rejected.
+
+## 4.41.0 - 2024-11-20
+
+### Added
+
+- New Bloblang method `timestamp`. (@mihaitodor)
+- New `benchmark` processor. (@ooesili)
+
+## 4.40.0 - 2024-10-25
+
+### Added
+
+- Field `follow_redirects` added to the `http` processor. (@ooesili)
+- Go API: Cli opt function added for custom CLI flags. (@Jeffail)
+- Go API: Methods `HasStructured` and `HasBytes` added to the message type. (@rockwotj)
+- Go API: Method `SetEnvironment` added to the schema type. (@Jeffail)
+
+### Fixed
+
+- WASM builds work again. (@voutilad)
+
+### Changed
+
+- CLI `--set` flags can now mutate array values indexed from the end via negative integers. E.g. `--set 'foo.-1=meow'` would set the last index of the array `foo` to the value of `meow`.
+
+## 4.39.0 - 2024-10-14
+
+### Added
+
+- Go API: Method `WalkComponentsAny` added to the stream config walker. (@Jeffail)
+
+## 4.38.0 - 2024-09-17
+
+### Added
+
+- Go API: Method `Resources` added to the `ParsedConfig` type. (@Jeffail)
+
+## 4.37.0 - 2024-09-11
+
+### Fixed
+
+- The `switch` output metrics now emit the case id as part of their labels. This is a regression introduced in v4.25.0. (@mihaitodor)
+- Fixed a bug where certain logs used the `%w` verb to print errors resulting in incorrect output. (@mihaitodor)
+- Fields instantiated via `FieldObjectList` and `FieldObjectMap` should now yield correct observability paths. (@Jeffail)
+- The logger no longer tries to replace Go fmt verbs in log messages. (@mihaitodor)
+
+## 4.36.0 - 2024-08-29
+
+### Fixed
+
+- Linting error messages for unrecognised components now displays the candidates.
+
+## 4.35.0 - 2024-08-13
+
+- The `--set` run flag now supports structured values, e.g. `--set input={}`. (@Jeffail)
+
+## 4.34.0 - 2024-08-06
+
+### Added
+
+- The `list` subcommand now supports the format `jsonschema`. (@Jeffail)
+- Go API: New `WithX` methods added to the environment type. (@Jeffail)
+- Go API: New `ConfigWalker` API added to the schema type. (@Jeffail)
+
+## 4.33.0 - 2024-07-19
+
+### Added
+
+- The `/ready` endpoint in regular operation now provides a detailed summary of all inputs and outputs, including connection errors where applicable. (@Jeffail)
+
+## 4.32.0 - 2024-07-16
+
+### Added
+
+- Go API: New `With` and `Without` methods added to plugin environments, allowing granular customisation as to which plugins are present. (@Jeffail)
+
+### Fixed
+
+- Go API: Custom environments are now honoured when running the `list` cli subcommand. (@Jeffail)
+
+## 4.31.0 - 2024-07-10
+
+### Added
+
+- Field `max_retries` added to the `retry` processor. (@mihaitodor)
+- Metadata fields `retry_count` and `backoff_duration` added to the `retry` processor. (@mihaitodor)
+- Parameter `escape_html` added to the `format_json()` Bloblang method. (@mihaitodor)
+- Go API: New generic key/value store methods added to the `*Resources` type. (@Jeffail)
+- Go API: Variadic options added to the public `service.RunCLI` function for customising cli args and accessing running stream data. (@Jeffail)
+- Go API: New `BloblangExecutor` and `InterpolationExecutor` added to the `MessageBatch`. (@Jeffail)
+- New `array` bloblang method. (@gramian)
+- Go API: New `CLIOptSetEnvVarLookup` cli option for customising config interpolations. (@Jeffail)
+- Algorithm `fnv32` added to the `hash` bloblang method. (@CallMeMhz)
+
+### Changed
+
+- All cli subcommands that previously relied on root-level flags (`streams`, `lint`, `test`, `echo`) now explicitly define those flags such that they appear in help-text and can be specified _after_ the subcommand itself. This means previous commands such as `connect -r ./foo.yaml streams ./bar.yaml` can now be more intuitively written as `connect streams -r ./foo.yaml ./bar.yaml` and so on. The old style will still work in order to preserve backwards compatibility, but the help-text for these root-level flags has been hidden.
+
+## 4.30.0 - 2024-06-13
+
+### Added
+
+- Go API: New APIs for capturing synchronous responses from downstream components. (@Jeffail)
+- Go API: Ability to customise the overall configuration schema of a stream builder. (@Jeffail)
+- New `sin`, `cos`, `tan` and `pi` bloblang methods. (@mfamador)
+- Field `proxy_url` added to the `websocket` input and output. (@mihaitodor)
+
+### Fixed
+
+- The `websocket` input and output now obey the `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` environment variables. (@mihaitodor)
+
+## 4.29.0 - 2024-06-10
+
+### Added
+
+- Go API: New APIs added for extracting struct based documentation for plugins, which can be used for executing custom documentation templates for each registered component and/or bloblang plugin.
+- Field `omit_empty` added to the `lines` scanner. (@mihaitodor)
+- New scheme `gcm` added to the `encrypt_aes` and `decrypy_aes` Bloblang methods. (@abergmeier)
+- New Bloblang method `pow`. (@mfamador)
+
 ## 4.28.0 - 2024-05-29
 
 ### Added
@@ -272,7 +423,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Restore message ordering support to `gcp_pubsub` output. This issue was introduced in 4.16.0 as a result of [#1836](https://github.com/benthosdev/benthos/pull/1836).
+- Restore message ordering support to `gcp_pubsub` output. This issue was introduced in 4.16.0 as a result of [#1836](https://github.com/redpanda-data/benthos/pull/1836).
 - Specifying structured metadata values (non-strings) in unit test definitions should no longer cause linting errors.
 
 ### Changed
@@ -709,7 +860,7 @@ This is a major version release, for more information and guidance on how to mig
 
 - The `sftp` output no longer opens files in both read and write mode.
 - The `aws_sqs` input with `reset_visibility` set to `false` will no longer reset timeouts on pending messages during gracefully shutdown.
-- The `schema_registry_decode` processor now handles AVRO logical types correctly. Details in [#1198](https://github.com/benthosdev/benthos/pull/1198) and [#1161](https://github.com/benthosdev/benthos/issues/1161) and also in https://github.com/linkedin/goavro/issues/242.
+- The `schema_registry_decode` processor now handles AVRO logical types correctly. Details in [#1198](https://github.com/redpanda-data/benthos/pull/1198) and [#1161](https://github.com/redpanda-data/benthos/issues/1161) and also in https://github.com/linkedin/goavro/issues/242.
 
 ### Changed
 

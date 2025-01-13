@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package output
 
 import (
@@ -148,8 +150,8 @@ func (n *notBatchedOutput) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
-func (n *notBatchedOutput) Connected() bool {
-	return n.out.Connected()
+func (n *notBatchedOutput) ConnectionStatus() component.ConnectionStatuses {
+	return n.out.ConnectionStatus()
 }
 
 func (n *notBatchedOutput) TriggerCloseNow() {

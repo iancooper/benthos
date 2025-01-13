@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package docs
 
 import (
@@ -409,6 +411,7 @@ root = if !$options.exists(this.string()%v) {
 	return f
 }
 
+// ScrubValue applies a sensitive information scrubber to a field value.
 func (f FieldSpec) ScrubValue(v any) (any, error) {
 	if f.Scrubber == "" {
 		return v, nil
@@ -431,6 +434,7 @@ func (f FieldSpec) ScrubValue(v any) (any, error) {
 	return res, nil
 }
 
+// GetLintFunc returns the field linter func.
 func (f FieldSpec) GetLintFunc() LintFunc {
 	fn := f.customLintFn
 	if fn == nil && f.Linter != "" {

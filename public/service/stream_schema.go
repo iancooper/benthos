@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -13,7 +15,9 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/config/schema"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
+	"github.com/redpanda-data/benthos/v4/internal/jsonschema"
 	"github.com/redpanda-data/benthos/v4/internal/stream"
+	"github.com/redpanda-data/benthos/v4/internal/template"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
@@ -50,9 +54,102 @@ func (e *Environment) CoreConfigSchema(version, dateBuilt string) *ConfigSchema 
 	}
 }
 
+// TemplateSchema returns the schema for a Benthos template file.
+func (e *Environment) TemplateSchema(version, dateBuilt string) *ConfigSchema {
+	return &ConfigSchema{
+		fields:    template.ConfigSpec(),
+		env:       e,
+		version:   version,
+		dateBuilt: dateBuilt,
+	}
+}
+
 // Environment provides access to the environment referenced by this schema.
 func (s *ConfigSchema) Environment() *Environment {
 	return s.env
+}
+
+// SetEnvironment overrides the environment referenced by this schema.
+func (s *ConfigSchema) SetEnvironment(e *Environment) {
+	s.env = e
+}
+
+// TemplateDataSchema contains schema information ready to inject within a
+// documentation page.
+type TemplateDataSchema struct {
+	// A list of fields defined by the plugin.
+	Fields []TemplateDataPluginField
+
+	// An example YAML config containing only common fields.
+	CommonConfigYAML string
+
+	// An example YAML config containing all fields.
+	AdvancedConfigYAML string
+}
+
+func genSchemaExample(field docs.FieldSpec, conf docs.SanitiseConfig) ([]byte, error) {
+	node, err := field.ToYAML(true)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := field.SanitiseYAML(node, conf); err != nil {
+		return nil, err
+	}
+
+	var mv any = node
+	if field.Name != "" {
+		mv = map[string]any{field.Name: mv}
+	}
+
+	eBytes, err := marshalYAML(mv)
+	if err != nil {
+		return nil, err
+	}
+	return eBytes, nil
+}
+
+// TemplateData attempts to prepare a list of structs containing information for
+// the fields within the section specified of the schema. This information can
+// then be fed into a template in order to generate documentation for the
+// section.
+func (s *ConfigSchema) TemplateData(path ...string) (TemplateDataSchema, error) {
+	field := docs.FieldObject("", "").WithChildren(s.fields...)
+
+pathLoop:
+	for _, p := range path {
+		for _, c := range field.Children {
+			if c.Name == p {
+				field = c
+				continue pathLoop
+			}
+		}
+		return TemplateDataSchema{}, errors.New("section not found")
+	}
+
+	sanitConf := docs.NewSanitiseConfig(s.env.internal)
+	sanitConf.RemoveDeprecated = true
+	sanitConf.RemoveTypeField = true
+	sanitConf.ForExample = true
+
+	advancedBytes, err := genSchemaExample(field, sanitConf)
+	if err != nil {
+		return TemplateDataSchema{}, err
+	}
+
+	sanitConf.Filter = func(spec docs.FieldSpec, v any) bool {
+		return !spec.IsAdvanced
+	}
+	commonBytes, err := genSchemaExample(field, sanitConf)
+	if err != nil {
+		return TemplateDataSchema{}, err
+	}
+
+	return TemplateDataSchema{
+		Fields:             flattenFieldSpecForTemplate(field),
+		CommonConfigYAML:   string(commonBytes),
+		AdvancedConfigYAML: string(advancedBytes),
+	}, nil
 }
 
 // ConfigSchemaFromJSONV0 attempts to parse a JSON serialised definition of an
@@ -124,58 +221,11 @@ func (s *ConfigSchema) MarshalJSONV0() ([]byte, error) {
 	return json.Marshal(iSchema)
 }
 
-func compSpecsToDefinition(specs []docs.ComponentSpec, typeFields map[string]docs.FieldSpec) map[string]any {
-	generalFields := map[string]any{}
-	for k, v := range typeFields {
-		generalFields[k] = v.JSONSchema()
-	}
-
-	var componentDefs []any
-	for _, s := range specs {
-		componentDefs = append(componentDefs, map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				s.Name: s.Config.JSONSchema(),
-			},
-		})
-	}
-
-	return map[string]any{
-		"allOf": []any{
-			map[string]any{
-				"anyOf": componentDefs, // TODO: Convert this to oneOf once issues are resolved.
-			},
-			map[string]any{
-				"type":       "object",
-				"properties": generalFields,
-			},
-		},
-	}
-}
-
 // MarshalJSONSchema attempts to marshal a JSON Schema definition containing the
 // entire config and plugin ecosystem such that other applications can
 // potentially execute their own linting and generation tools with it.
 func (s *ConfigSchema) MarshalJSONSchema() ([]byte, error) {
-	s.env.internal.BufferDocs()
-	defs := map[string]any{
-		"input":      compSpecsToDefinition(s.env.internal.InputDocs(), docs.ReservedFieldsByType(docs.TypeInput)),
-		"buffer":     compSpecsToDefinition(s.env.internal.BufferDocs(), docs.ReservedFieldsByType(docs.TypeBuffer)),
-		"cache":      compSpecsToDefinition(s.env.internal.CacheDocs(), docs.ReservedFieldsByType(docs.TypeCache)),
-		"processor":  compSpecsToDefinition(s.env.internal.ProcessorDocs(), docs.ReservedFieldsByType(docs.TypeProcessor)),
-		"rate_limit": compSpecsToDefinition(s.env.internal.RateLimitDocs(), docs.ReservedFieldsByType(docs.TypeRateLimit)),
-		"output":     compSpecsToDefinition(s.env.internal.OutputDocs(), docs.ReservedFieldsByType(docs.TypeOutput)),
-		"metrics":    compSpecsToDefinition(s.env.internal.MetricsDocs(), docs.ReservedFieldsByType(docs.TypeMetrics)),
-		"tracer":     compSpecsToDefinition(s.env.internal.TracersDocs(), docs.ReservedFieldsByType(docs.TypeTracer)),
-		"scanner":    compSpecsToDefinition(s.env.internal.ScannerDocs(), docs.ReservedFieldsByType(docs.TypeScanner)),
-	}
-
-	schemaObj := map[string]any{
-		"properties":  s.fields.JSONSchema(),
-		"definitions": defs,
-	}
-
-	return json.Marshal(schemaObj)
+	return jsonschema.Marshal(s.fields, s.env.internal)
 }
 
 // SetVersion sets the version and date-built stamp associated with the schema.
@@ -183,6 +233,15 @@ func (s *ConfigSchema) SetVersion(version, dateBuilt string) *ConfigSchema {
 	s.version = version
 	s.dateBuilt = dateBuilt
 	return s
+}
+
+// SetFieldDefault attempts to change the default value of a field in the config
+// spec, which is the value used when the field is omitted from the config.
+//
+// This method does NOT support walking into arrays, nor component configs
+// themselves.
+func (s *ConfigSchema) SetFieldDefault(value any, path ...string) {
+	s.fields.SetDefault(value, path...)
 }
 
 // Field adds a field to the main config of a schema.

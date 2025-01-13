@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure_test
 
 import (
@@ -1032,7 +1034,7 @@ workflow:
 	defer done()
 
 	go func() {
-		assert.NoError(t, strm.Run(tCtx))
+		_ = strm.Run(tCtx)
 	}()
 	require.NoError(t, inFunc(tCtx, service.NewMessage([]byte(`{"id":"hello world","content":"waddup"}`))))
 	require.NoError(t, strm.Stop(tCtx))

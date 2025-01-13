@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -77,7 +79,9 @@ func (s *StreamConfigLinter) LintYAML(yamlBytes []byte) (lints []Lint, err error
 		})
 	}
 
-	if yamlBytes, err = config.ReplaceEnvVariables(yamlBytes, s.envVarLookupFn); err != nil {
+	if yamlBytes, err = config.NewReader("", nil, config.OptUseEnvLookupFunc(func(ctx context.Context, key string) (string, bool) {
+		return s.envVarLookupFn(key)
+	})).ReplaceEnvVariables(context.TODO(), yamlBytes); err != nil {
 		var errEnvMissing *config.ErrMissingEnvVars
 		if !errors.As(err, &errEnvMissing) {
 			return

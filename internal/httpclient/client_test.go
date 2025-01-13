@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package httpclient
 
 import (
@@ -665,6 +667,92 @@ oauth2:
 	assert.Equal(t, "HELLO WORLD", string(mBytes))
 }
 
+func TestHTTPClientOAuth2ConfWithRefreshToken(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer footoken", r.Header.Get("Authorization"))
+		b, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		_, _ = w.Write(bytes.ToUpper(b))
+	}))
+	defer ts.Close()
+
+	tsOAuth2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Basic Zm9va2V5OmZvb3NlY3JldA==", r.Header.Get("Authorization"))
+		b, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "grant_type=refresh_token&refresh_token=foorefresh", string(b))
+		_, _ = w.Write([]byte(`access_token=footoken&token_type=Bearer`))
+	}))
+	defer tsOAuth2.Close()
+
+	conf := clientConfig(t, `
+url: %v
+oauth2:
+  enabled: true
+  token_url: %v
+  client_key: fookey
+  client_secret: foosecret
+  endpoint_params:
+    grant_type:
+      - refresh_token
+    refresh_token:
+      - foorefresh
+`, ts.URL+"/testpost", tsOAuth2.URL)
+
+	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	require.NoError(t, err)
+
+	resBatch, err := h.Send(context.Background(), service.MessageBatch{
+		service.NewMessage([]byte("hello world")),
+	})
+	require.NoError(t, err)
+	require.Len(t, resBatch, 1)
+
+	mBytes, err := resBatch[0].AsBytes()
+	require.NoError(t, err)
+	assert.Equal(t, "HELLO WORLD", string(mBytes))
+
+}
+
+func TestHTTPClientOAuth2ConfWithMissingRefreshToken(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer footoken", r.Header.Get("Authorization"))
+		b, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		_, _ = w.Write(bytes.ToUpper(b))
+	}))
+	defer ts.Close()
+
+	tsOAuth2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Basic Zm9va2V5OmZvb3NlY3JldA==", r.Header.Get("Authorization"))
+		b, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "grant_type=refresh_token&refresh_token=foorefresh", string(b))
+		_, _ = w.Write([]byte(`access_token=footoken&token_type=Bearer`))
+	}))
+	defer tsOAuth2.Close()
+
+	conf := clientConfig(t, `
+url: %v
+oauth2:
+  enabled: true
+  token_url: %v
+  client_key: fookey
+  client_secret: foosecret
+  endpoint_params:
+    grant_type:
+      - refresh_token
+`, ts.URL+"/testpost", tsOAuth2.URL)
+
+	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	require.NoError(t, err)
+
+	_, err = h.Send(context.Background(), service.MessageBatch{
+		service.NewMessage([]byte("hello world")),
+	})
+	require.Error(t, err)
+}
+
 func TestHTTPClientOAuth2AndTLSConf(t *testing.T) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer footoken", r.Header.Get("Authorization"))
@@ -707,4 +795,36 @@ tls:
 	mBytes, err := resBatch[0].AsBytes()
 	require.NoError(t, err)
 	assert.Equal(t, "HELLO WORLD", string(mBytes))
+}
+
+func TestHTTPClientNoFollowRedirects(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://example.com", http.StatusMovedPermanently)
+	}))
+	defer ts.Close()
+
+	conf := clientConfig(t, `
+url: %v
+follow_redirects: false
+extract_headers:
+  include_patterns:
+  - '^location$'
+`, ts.URL)
+
+	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	require.NoError(t, err)
+
+	resBatch, err := h.Send(context.Background(), service.MessageBatch{
+		service.NewMessage([]byte("hello world")),
+	})
+	require.NoError(t, err)
+	require.Len(t, resBatch, 1)
+
+	status, ok := resBatch[0].MetaGet("http_status_code")
+	require.True(t, ok)
+	require.Equal(t, "301", status)
+
+	location, ok := resBatch[0].MetaGet("location")
+	require.True(t, ok)
+	require.Equal(t, "https://example.com", location)
 }

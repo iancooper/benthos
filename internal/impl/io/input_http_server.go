@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package io
 
 import (
@@ -25,6 +27,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/api"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
 	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
@@ -180,7 +183,7 @@ The following fields specify endpoints that are registered for sending messages,
 
 This endpoint expects POST requests where the entire request body is consumed as a single message.
 
-If the request contains a multipart `+"`content-type`"+` header as per https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[rfc1341] then the multiple parts are consumed as a batch of messages, where each body part is a message of the batch.
+If the request contains a multipart `+"`content-type`"+` header as per https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341^] then the multiple parts are consumed as a batch of messages, where each body part is a message of the batch.
 
 === `+"`ws_path` (defaults to `/post/ws`)"+`
 
@@ -907,10 +910,10 @@ func (h *httpServerInput) TransactionChan() <-chan message.Transaction {
 	return h.transactions
 }
 
-// Connected returns a boolean indicating whether this input is currently
-// connected to its target.
-func (h *httpServerInput) Connected() bool {
-	return true
+func (h *httpServerInput) ConnectionStatus() component.ConnectionStatuses {
+	return component.ConnectionStatuses{
+		component.ConnectionActive(h.mgr),
+	}
 }
 
 func (h *httpServerInput) TriggerStopConsuming() {

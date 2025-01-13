@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -68,16 +70,16 @@ func (p *parallelProc) ProcessBatch(ctx *processor.BatchProcContext, msg message
 		return nil
 	})
 
-	max := p.cap
-	if max == 0 || msg.Len() < max {
-		max = msg.Len()
+	maxV := p.cap
+	if maxV == 0 || msg.Len() < maxV {
+		maxV = msg.Len()
 	}
 
 	reqChan := make(chan int)
 	wg := sync.WaitGroup{}
-	wg.Add(max)
+	wg.Add(maxV)
 
-	for i := 0; i < max; i++ {
+	for i := 0; i < maxV; i++ {
 		go func() {
 			defer wg.Done()
 

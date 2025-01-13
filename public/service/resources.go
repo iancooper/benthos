@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -13,6 +15,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/component/ratelimit"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
+	"github.com/redpanda-data/benthos/v4/internal/manager"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 )
 
@@ -23,6 +26,18 @@ type Resources struct {
 
 func newResourcesFromManager(nm bundle.NewManagement) *Resources {
 	return &Resources{mgr: nm}
+}
+
+// NewInternalResources returns a resources pointer wrapped around an
+// instantiation of the internal manager package. This function is for internal
+// use only and intended as a scaffold for internal components migrating to the
+// new APIs.
+func NewInternalResources(mgr *manager.Type) *Resources {
+	// NOTE: I've implemented this around an explicit pointer to `manager.Type`
+	// rather than `bundle.NewManagement` just to make it even clearer to
+	// outsiders that you aren't meant to use this function unless you're able
+	// to access internal.
+	return newResourcesFromManager(mgr)
 }
 
 // MockResources returns an instantiation of a resources struct that provides
@@ -248,6 +263,31 @@ func (r *Resources) AccessRateLimit(ctx context.Context, name string, fn func(r 
 // initialisation as it is defensive against ordering.
 func (r *Resources) HasRateLimit(name string) bool {
 	return r.mgr.ProbeRateLimit(name)
+}
+
+// GetGeneric queries the resources for a generic key value, potentially set by
+// another plugin or instantiation of this plugin.
+func (r *Resources) GetGeneric(key any) (any, bool) {
+	return r.mgr.GetGeneric(key)
+}
+
+// GetOrSetGeneric attempts to obtain an existing generic value for a given key
+// if present. Otherwise, it stores and returns the provided value. The loaded
+// result is true if the value was loaded, false if stored.
+func (r *Resources) GetOrSetGeneric(key, value any) (actual any, loaded bool) {
+	return r.mgr.GetOrSetGeneric(key, value)
+}
+
+// SetGeneric sets a generic key/value pair, which can be accessed by other
+// plugin implementations with access to the same resources.
+//
+// The provided key must be comparable and should not be of type string or any
+// other built-in type to avoid collisions between packages using resources.
+// Users of SetGeneric should define their own types for keys. To avoid
+// allocating when assigning to an any type, keys often have concrete type
+// struct{}.
+func (r *Resources) SetGeneric(key, value any) {
+	r.mgr.SetGeneric(key, value)
 }
 
 //------------------------------------------------------------------------------

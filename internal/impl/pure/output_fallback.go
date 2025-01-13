@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -64,7 +66,7 @@ output:
         path: /usr/local/benthos/failed_stuff.jsonl
 `+"```"+`
 
-Benthos makes a best attempt at inferring which specific messages of the batch failed, and only propagates those individual messages to the next fallback tier.
+Redpanda Connect makes a best attempt at inferring which specific messages of the batch failed, and only propagates those individual messages to the next fallback tier.
 
 However, depending on the output and the error returned it is sometimes not possible to determine the individual messages that failed, in which case the whole batch is passed to the next tier in order to preserve at-least-once delivery guarantees.`).
 			Field(service.NewOutputListField("").Default([]any{})),
@@ -146,15 +148,11 @@ func (t *fallbackBroker) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
-// Connected returns a boolean indicating whether this output is currently
-// connected to its target.
-func (t *fallbackBroker) Connected() bool {
+func (t *fallbackBroker) ConnectionStatus() (s component.ConnectionStatuses) {
 	for _, out := range t.outputs {
-		if !out.Connected() {
-			return false
-		}
+		s = append(s, out.ConnectionStatus()...)
 	}
-	return true
+	return
 }
 
 //------------------------------------------------------------------------------

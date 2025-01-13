@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure_test
 
 import (
@@ -37,7 +39,7 @@ func TestResourceOutput(t *testing.T) {
 	p, err := mgr.NewOutput(nConf)
 	require.NoError(t, err)
 
-	assert.True(t, p.Connected())
+	assert.True(t, p.ConnectionStatus().AllActive())
 
 	tChan := make(chan message.Transaction)
 	assert.NoError(t, p.Consume(tChan))

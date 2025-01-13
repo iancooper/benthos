@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -7,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"sync/atomic"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/gofrs/uuid"
@@ -66,23 +67,29 @@ type StreamBuilder struct {
 	apiMut       manager.APIReg
 	customLogger log.Modular
 
-	env             *Environment
-	lintingDisabled bool
-	envVarLookupFn  func(string) (string, bool)
+	configSpec          docs.FieldSpecs
+	env                 *Environment
+	lintingDisabled     bool
+	envVarLookupFn      func(string) (string, bool)
+	outputBrokerPattern OutputBrokerPatternType
 }
 
 // NewStreamBuilder creates a new StreamBuilder.
 func NewStreamBuilder() *StreamBuilder {
 	httpConf := api.NewConfig()
 	httpConf.Enabled = false
+
+	tmpSpec := config.Spec()
+	tmpSpec.SetDefault(false, "http", "enabled")
+
 	return &StreamBuilder{
-		engineVersion:  cli.Version,
 		http:           httpConf,
 		buffer:         buffer.NewConfig(),
 		resources:      manager.NewResourceConfig(),
 		metrics:        metrics.NewConfig(),
 		tracer:         tracer.NewConfig(),
 		logger:         log.NewConfig(),
+		configSpec:     tmpSpec,
 		env:            globalEnvironment,
 		envVarLookupFn: os.LookupEnv,
 	}
@@ -102,6 +109,20 @@ func (s *StreamBuilder) getLintContext() docs.LintContext {
 // version either from the benthos module import or a build-time flag.
 func (s *StreamBuilder) SetEngineVersion(ev string) {
 	s.engineVersion = ev
+}
+
+// SetSchema overrides the default config schema used when linting and parsing
+// full configs with the SetYAML method. Other XYAML methods will not use this
+// schema as they parse individual component configs rather than a larger
+// configuration.
+//
+// This method is useful as a mechanism for modifying the default top-level
+// settings, such as metrics types and so on.
+func (s *StreamBuilder) SetSchema(schema *ConfigSchema) {
+	if s.engineVersion == "" {
+		s.engineVersion = schema.version
+	}
+	s.configSpec = schema.fields
 }
 
 // DisableLinting configures the stream builder to no longer lint YAML configs,
@@ -125,6 +146,13 @@ func (s *StreamBuilder) SetEnvVarLookupFunc(fn func(string) (string, bool)) {
 // will match the number of logical CPUs on the machine.
 func (s *StreamBuilder) SetThreads(n int) {
 	s.threads = n
+}
+
+// SetOutputBrokerPattern changes the pattern used for brokering messages when
+// multiple outputs are added via AddOutputYAML or when AddConsumerFunc is used.
+// The default pattern is `fan_out`.
+func (s *StreamBuilder) SetOutputBrokerPattern(pattern OutputBrokerPatternType) {
+	s.outputBrokerPattern = pattern
 }
 
 // PrintLogger is a simple Print based interface implemented by custom loggers.
@@ -313,8 +341,8 @@ func (s *StreamBuilder) AddProcessorYAML(conf string) error {
 
 // AddConsumerFunc adds an output to the builder that executes a closure
 // function argument for each message. If more than one output configuration is
-// added they will automatically be composed within a fan out broker when the
-// pipeline is built.
+// added they will automatically be composed within a broker (default `fan_out`)
+// when the pipeline is built.
 //
 // The provided MessageHandlerFunc may be called from any number of goroutines,
 // and therefore it is recommended to implement some form of throttling or mutex
@@ -352,8 +380,8 @@ func (s *StreamBuilder) AddConsumerFunc(fn MessageHandlerFunc) error {
 
 // AddBatchConsumerFunc adds an output to the builder that executes a closure
 // function argument for each message batch. If more than one output
-// configuration is added they will automatically be composed within a fan out
-// broker when the pipeline is built.
+// configuration is added they will automatically be composed within a broker
+// (default `fan_out`) when the pipeline is built.
 //
 // The provided MessageBatchHandlerFunc may be called from any number of
 // goroutines, and therefore it is recommended to implement some form of
@@ -388,7 +416,7 @@ func (s *StreamBuilder) AddBatchConsumerFunc(fn MessageBatchHandlerFunc) error {
 
 // AddOutputYAML parses an output YAML configuration and adds it to the builder.
 // If more than one output configuration is added they will automatically be
-// composed within a fan out broker when the pipeline is built.
+// composed within a broker (default `fan_out`) when the pipeline is built.
 func (s *StreamBuilder) AddOutputYAML(conf string) error {
 	nconf, err := s.getYAMLNode([]byte(conf))
 	if err != nil {
@@ -509,7 +537,7 @@ func (s *StreamBuilder) SetYAML(conf string) error {
 		return err
 	}
 
-	spec := configSpec()
+	spec := s.configSpec
 	if err := s.lintYAMLSpec(spec, node); err != nil {
 		return err
 	}
@@ -526,19 +554,6 @@ func (s *StreamBuilder) SetYAML(conf string) error {
 
 	s.setFromConfig(sconf)
 	return nil
-}
-
-var builderConfigSpec atomic.Pointer[docs.FieldSpecs]
-
-func configSpec() docs.FieldSpecs {
-	spec := builderConfigSpec.Load()
-	if spec == nil {
-		tmpSpec := config.Spec()
-		tmpSpec.SetDefault(false, "http", "enabled")
-		spec = &tmpSpec
-		builderConfigSpec.Store(spec)
-	}
-	return *spec
 }
 
 // SetFields modifies the config by setting one or more fields identified by a
@@ -566,7 +581,7 @@ func (s *StreamBuilder) SetFields(pathValues ...any) error {
 	sanitConf.RemoveDeprecated = false
 	sanitConf.DocsProvider = s.env.internal
 
-	if err := configSpec().SanitiseYAML(&rootNode, sanitConf); err != nil {
+	if err := s.configSpec.SanitiseYAML(&rootNode, sanitConf); err != nil {
 		return err
 	}
 
@@ -579,12 +594,12 @@ func (s *StreamBuilder) SetFields(pathValues ...any) error {
 		if !ok {
 			return fmt.Errorf("variadic pair element %v should be a string, got a %T", i, pathValues[i])
 		}
-		if err := configSpec().SetYAMLPath(s.env.internal, &rootNode, &valueNode, gabs.DotPathToSlice(pathString)...); err != nil {
+		if err := s.configSpec.SetYAMLPath(s.env.internal, &rootNode, &valueNode, gabs.DotPathToSlice(pathString)...); err != nil {
 			return err
 		}
 	}
 
-	spec := configSpec()
+	spec := s.configSpec
 	if err := s.lintYAMLSpec(spec, &rootNode); err != nil {
 		return err
 	}
@@ -724,7 +739,7 @@ func (s *StreamBuilder) AsYAML() (string, error) {
 	sanitConf.RemoveDeprecated = false
 	sanitConf.DocsProvider = s.env.internal
 
-	if err := configSpec().SanitiseYAML(&node, sanitConf); err != nil {
+	if err := s.configSpec.SanitiseYAML(&node, sanitConf); err != nil {
 		return "", err
 	}
 
@@ -733,20 +748,6 @@ func (s *StreamBuilder) AsYAML() (string, error) {
 		return "", err
 	}
 	return string(b), nil
-}
-
-// WalkedComponent is a struct containing information about a component yielded
-// via the WalkComponents method.
-type WalkedComponent struct {
-	ComponentType string
-	Name          string
-	Label         string
-	confYAML      string
-}
-
-// ConfigYAML returns the configuration of a walked component in YAML form.
-func (w *WalkedComponent) ConfigYAML() string {
-	return w.confYAML
 }
 
 // WalkComponents walks the Benthos configuration as it is currently built and
@@ -767,24 +768,23 @@ func (s *StreamBuilder) WalkComponents(fn func(w *WalkedComponent) error) error 
 	sanitConf.RemoveDeprecated = false
 	sanitConf.DocsProvider = s.env.internal
 
-	spec := configSpec()
+	spec := s.configSpec
 	if err := spec.SanitiseYAML(&node, sanitConf); err != nil {
 		return err
 	}
 
-	return spec.WalkYAML(&node, s.env.internal,
-		func(c docs.WalkedYAMLComponent) error {
-			yamlBytes, err := yaml.Marshal(c.Conf)
-			if err != nil {
-				return err
+	walkConf := docs.WalkComponentConfig{
+		Provider: s.env.internal,
+		Func: func(c docs.WalkedComponent) error {
+			tmpErr := fn(walkedComponentFromInternal(c))
+			if errors.Is(tmpErr, ErrSkipComponents) {
+				tmpErr = docs.ErrSkipChildComponents
 			}
-			return fn(&WalkedComponent{
-				ComponentType: string(c.ComponentType),
-				Name:          c.Name,
-				Label:         c.Label,
-				confYAML:      string(yamlBytes),
-			})
-		})
+			return tmpErr
+		},
+	}
+
+	return spec.WalkComponentsYAML(walkConf, &node)
 }
 
 //------------------------------------------------------------------------------
@@ -847,6 +847,11 @@ func (s *StreamBuilder) buildWithEnv(env *bundle.Environment) (*Stream, error) {
 		}
 	}
 
+	engVer := s.engineVersion
+	if engVer == "" {
+		engVer = cli.Version
+	}
+
 	// This temporary manager is a very lazy way of instantiating a manager that
 	// restricts the bloblang and component environments to custom plugins.
 	// Ideally we would break out the constructor for our general purpose
@@ -854,7 +859,7 @@ func (s *StreamBuilder) buildWithEnv(env *bundle.Environment) (*Stream, error) {
 	// resource constructors until after this metrics exporter is initialised.
 	tmpMgr, err := manager.New(
 		manager.NewResourceConfig(),
-		manager.OptSetEngineVersion(s.engineVersion),
+		manager.OptSetEngineVersion(engVer),
 		manager.OptSetLogger(logger),
 		manager.OptSetEnvironment(env),
 		manager.OptSetBloblangEnvironment(s.env.getBloblangParserEnv()),
@@ -883,7 +888,7 @@ func (s *StreamBuilder) buildWithEnv(env *bundle.Environment) (*Stream, error) {
 			sanitConf.RemoveTypeField = true
 			sanitConf.ScrubSecrets = true
 			sanitConf.DocsProvider = env
-			_ = configSpec().SanitiseYAML(&sanitNode, sanitConf)
+			_ = s.configSpec.SanitiseYAML(&sanitNode, sanitConf)
 		}
 		if apiType, err = api.New("", "", s.http, sanitNode, logger, stats); err != nil {
 			return nil, fmt.Errorf("unable to create stream HTTP server due to: %w. Tip: you can disable the server with `http.enabled` set to `false`, or override the configured server with SetHTTPMux", err)
@@ -965,9 +970,13 @@ func (s *StreamBuilder) buildConfig() builderConfig {
 		for i, v := range s.outputs {
 			iSlice[i] = v
 		}
-		conf.Output.Plugin = map[string]any{
+		broker := map[string]any{
 			"outputs": iSlice,
 		}
+		if s.outputBrokerPattern != "" {
+			broker["pattern"] = string(s.outputBrokerPattern)
+		}
+		conf.Output.Plugin = broker
 	} else {
 		// TODO: V5 Prevent default input/output
 		conf.Output = output.NewConfig()
@@ -986,7 +995,9 @@ func (s *StreamBuilder) buildConfig() builderConfig {
 
 func (s *StreamBuilder) getYAMLNode(b []byte) (*yaml.Node, error) {
 	var err error
-	if b, err = config.ReplaceEnvVariables(b, s.envVarLookupFn); err != nil {
+	if b, err = config.NewReader("", nil, config.OptUseEnvLookupFunc(func(ctx context.Context, key string) (string, bool) {
+		return s.envVarLookupFn(key)
+	})).ReplaceEnvVariables(context.TODO(), b); err != nil {
 		// TODO: Allow users to specify whether they care about env variables
 		// missing, in which case we error or not based on that.
 		var errEnvMissing *config.ErrMissingEnvVars

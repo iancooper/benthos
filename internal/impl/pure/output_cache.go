@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -21,12 +23,15 @@ const (
 	coFieldTTL    = "ttl"
 )
 
+// CacheOutputSpec returns the config spec of the cache output plugin.
 func CacheOutputSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
 		Categories("Services").
 		Summary(`Stores each message in a xref:components:caches/about.adoc[cache].`).
 		Description(`Caches are configured as xref:components:caches/about.adoc[resources], where there's a wide variety to choose from.
+
+:cache-support: aws_dynamodb=certified, aws_s3=certified, file=certified, memcached=certified, memory=certified, nats_kv=certified, redis=certified, ristretto=certified, couchbase=community, mongodb=community, sql=community, multilevel=community, ttlru=community, gcp_cloud_storage=community, lru=community, noop=community
 
 The `+"`target`"+` field must reference a configured cache resource label like follows:
 
@@ -93,6 +98,7 @@ func init() {
 	}
 }
 
+// CacheWriter is a writer implementation for the cache output plugin.
 type CacheWriter struct {
 	mgr bundle.NewManagement
 
@@ -103,7 +109,7 @@ type CacheWriter struct {
 	log log.Modular
 }
 
-// NewCacheWriter creates a writer for cache the output plugin.
+// NewCacheWriter creates a writer for the cache output plugin.
 func NewCacheWriter(conf *service.ParsedConfig, mgr bundle.NewManagement) (*CacheWriter, error) {
 	target, err := conf.FieldString(coFieldTarget)
 	if err != nil {

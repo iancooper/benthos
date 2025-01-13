@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package message
 
 // Contains underlying allocated data for messages.
@@ -32,6 +34,14 @@ func (m *messageData) AsBytes() []byte {
 		m.rawBytes = encodeJSON(m.structured)
 	}
 	return m.rawBytes
+}
+
+func (m *messageData) HasBytes() bool {
+	return m.rawBytes != nil
+}
+
+func (m *messageData) HasStructured() bool {
+	return m.structured != nil
 }
 
 func (m *messageData) SetStructured(jObj any) {
@@ -71,7 +81,7 @@ func (m *messageData) AsStructuredMut() (any, error) {
 		if m.structured != nil {
 			m.structured = cloneGeneric(m.structured)
 		}
-		m.readOnlyStructured = true
+		m.readOnlyStructured = false
 	}
 
 	v, err := m.AsStructured()

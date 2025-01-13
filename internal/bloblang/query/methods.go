@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package query
 
 import (
@@ -75,6 +77,33 @@ func applyMethod(target Function, args *ParsedParams) (Function, error) {
 		return returnCtx, append(targets, mapTargets...)
 	}), nil
 }
+
+//------------------------------------------------------------------------------
+
+var _ = registerSimpleMethod(
+	NewMethodSpec(
+		"array", "",
+	).InCategory(
+		MethodCategoryCoercion,
+		"Return an array containing the target value. If the value is already an array it is unchanged.",
+		NewExampleSpec("",
+			`root.my_array = this.name.array()`,
+			`{"name":"foobar bazson"}`,
+			`{"my_array":["foobar bazson"]}`,
+		),
+	),
+	func(*ParsedParams) (simpleMethod, error) {
+		return func(v any, ctx FunctionContext) (any, error) {
+			switch v.(type) {
+			case []any:
+				return v, nil
+			}
+			arr := make([]any, 1)
+			arr[0] = v
+			return arr, nil
+		}, nil
+	},
+)
 
 //------------------------------------------------------------------------------
 
@@ -433,6 +462,46 @@ func numberCoerceMethod(target Function, args *ParsedParams) (Function, error) {
 		if err != nil {
 			if defaultNum != nil {
 				return *defaultNum, nil
+			}
+			return nil, ErrFrom(err, target)
+		}
+		return f, nil
+	}, target.QueryTargets), nil
+}
+
+//------------------------------------------------------------------------------
+
+var _ = registerMethod(
+	NewMethodSpec(
+		"timestamp", "",
+	).InCategory(
+		MethodCategoryCoercion,
+		"Attempt to parse a value into a timestamp. An optional argument can be provided, in which case if the value cannot be parsed into a timestamp the argument will be returned instead.",
+		NewExampleSpec("",
+			`root.foo = this.ts.timestamp()
+root.bar = this.none.timestamp(1234567890.timestamp())`,
+		),
+	).Param(ParamTimestamp("default", "An optional value to yield if the target cannot be parsed as a timestamp.").Optional()),
+	timestampCoerceMethod,
+)
+
+func timestampCoerceMethod(target Function, args *ParsedParams) (Function, error) {
+	defaultTS, err := args.FieldOptionalTimestamp("default")
+	if err != nil {
+		return nil, err
+	}
+	return ClosureFunction("method timestamp", func(ctx FunctionContext) (any, error) {
+		v, err := target.Exec(ctx)
+		if err != nil {
+			if defaultTS != nil {
+				return *defaultTS, nil
+			}
+			return nil, err
+		}
+		f, err := value.IGetTimestamp(v)
+		if err != nil {
+			if defaultTS != nil {
+				return *defaultTS, nil
 			}
 			return nil, ErrFrom(err, target)
 		}

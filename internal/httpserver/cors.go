@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package httpserver
 
 import (
@@ -52,6 +54,7 @@ func ServerCORSFieldSpec() docs.FieldSpec {
 	).AtVersion("3.63.0").Advanced()
 }
 
+// CORSConfigFromParsed extracts the CORS fields from the parsed config and returns a CORS config.
 func CORSConfigFromParsed(pConf *docs.ParsedConfig) (conf CORSConfig, err error) {
 	pConf = pConf.Namespace(fieldCORS)
 	if conf.Enabled, err = pConf.FieldBool(fieldCORSEnabled); err != nil {

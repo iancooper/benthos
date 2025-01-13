@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -28,7 +30,7 @@ func jmpProcSpec() *service.ConfigSpec {
 [TIP]
 .Try out Bloblang
 ====
-For better performance and improved capabilities try native Benthos mapping with the xref:components:processors/mapping.adoc[`+"`mapping`"+` processor].
+For better performance and improved capabilities try native Redpanda Connect mapping with the xref:components:processors/mapping.adoc[`+"`mapping`"+` processor].
 ====
 `).
 		Example("Mapping", `

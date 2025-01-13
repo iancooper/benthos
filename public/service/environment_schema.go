@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -11,8 +13,9 @@ type EnvironmentSchema struct {
 	s schema.Full
 }
 
+// GenerateSchema creates a new EnvironmentSchema.
 func (e *Environment) GenerateSchema(version, dateBuilt string) *EnvironmentSchema {
-	schema := schema.New(version, dateBuilt)
+	schema := schema.New(version, dateBuilt, e.internal, e.getBloblangParserEnv())
 	return &EnvironmentSchema{s: schema}
 }
 

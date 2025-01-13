@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package query
 
 import (
@@ -18,6 +20,7 @@ import (
 	"fmt"
 	"hash"
 	"hash/crc32"
+	"hash/fnv"
 	"html"
 	"io"
 	"net/url"
@@ -280,7 +283,7 @@ var _ = registerSimpleMethod(
 		"encrypt_aes", "",
 	).InCategory(
 		MethodCategoryEncoding,
-		"Encrypts a string or byte array target according to a chosen AES encryption method and returns a string result. The algorithms require a key and an initialization vector / nonce. Available schemes are: `ctr`, `ofb`, `cbc`.",
+		"Encrypts a string or byte array target according to a chosen AES encryption method and returns a string result. The algorithms require a key and an initialization vector / nonce. Available schemes are: `ctr`, `gcm`, `ofb`, `cbc`.",
 		NewExampleSpec("",
 			`let key = "2b7e151628aed2a6abf7158809cf4f3c".decode("hex")
 let vector = "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff".decode("hex")
@@ -289,7 +292,7 @@ root.encrypted = this.value.encrypt_aes("ctr", $key, $vector).encode("hex")`,
 			`{"encrypted":"84e9b31ff7400bdf80be7254"}`,
 		),
 	).
-		Param(ParamString("scheme", "The scheme to use for encryption, one of `ctr`, `ofb`, `cbc`.")).
+		Param(ParamString("scheme", "The scheme to use for encryption, one of `ctr`, `gcm`, `ofb`, `cbc`.")).
 		Param(ParamString("key", "A key to encrypt with.")).
 		Param(ParamString("iv", "An initialization vector / nonce.")),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -311,8 +314,16 @@ root.encrypted = this.value.encrypt_aes("ctr", $key, $vector).encode("hex")`,
 			return nil, err
 		}
 		iv := []byte(ivStr)
-		if len(iv) != block.BlockSize() {
-			return nil, errors.New("the key must match the initialisation vector size")
+
+		switch schemeStr {
+		case "ctr":
+			fallthrough
+		case "ofb":
+			fallthrough
+		case "cbc":
+			if len(iv) != block.BlockSize() {
+				return nil, errors.New("the key must match the initialisation vector size")
+			}
 		}
 
 		var schemeFn func([]byte) (string, error)
@@ -322,6 +333,16 @@ root.encrypted = this.value.encrypt_aes("ctr", $key, $vector).encode("hex")`,
 				ciphertext := make([]byte, len(b))
 				stream := cipher.NewCTR(block, iv)
 				stream.XORKeyStream(ciphertext, b)
+				return string(ciphertext), nil
+			}
+		case "gcm":
+			schemeFn = func(b []byte) (string, error) {
+				ciphertext := make([]byte, 0, len(b))
+				stream, err := cipher.NewGCM(block)
+				if err != nil {
+					return "", fmt.Errorf("creating gcm failed: %w", err)
+				}
+				ciphertext = stream.Seal(ciphertext, iv, b, nil)
 				return string(ciphertext), nil
 			}
 		case "ofb":
@@ -368,7 +389,7 @@ var _ = registerSimpleMethod(
 		"decrypt_aes", "",
 	).InCategory(
 		MethodCategoryEncoding,
-		"Decrypts an encrypted string or byte array target according to a chosen AES encryption method and returns the result as a byte array. The algorithms require a key and an initialization vector / nonce. Available schemes are: `ctr`, `ofb`, `cbc`.",
+		"Decrypts an encrypted string or byte array target according to a chosen AES encryption method and returns the result as a byte array. The algorithms require a key and an initialization vector / nonce. Available schemes are: `ctr`, `gcm`, `ofb`, `cbc`.",
 		NewExampleSpec("",
 			`let key = "2b7e151628aed2a6abf7158809cf4f3c".decode("hex")
 let vector = "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff".decode("hex")
@@ -377,7 +398,7 @@ root.decrypted = this.value.decode("hex").decrypt_aes("ctr", $key, $vector).stri
 			`{"decrypted":"hello world!"}`,
 		),
 	).
-		Param(ParamString("scheme", "The scheme to use for decryption, one of `ctr`, `ofb`, `cbc`.")).
+		Param(ParamString("scheme", "The scheme to use for decryption, one of `ctr`, `gcm`, `ofb`, `cbc`.")).
 		Param(ParamString("key", "A key to decrypt with.")).
 		Param(ParamString("iv", "An initialization vector / nonce.")),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -400,8 +421,15 @@ root.decrypted = this.value.decode("hex").decrypt_aes("ctr", $key, $vector).stri
 			return nil, err
 		}
 		iv := []byte(ivStr)
-		if len(iv) != block.BlockSize() {
-			return nil, errors.New("the key must match the initialisation vector size")
+		switch schemeStr {
+		case "ctr":
+			fallthrough
+		case "ofb":
+			fallthrough
+		case "cbc":
+			if len(iv) != block.BlockSize() {
+				return nil, errors.New("the key must match the initialisation vector size")
+			}
 		}
 
 		var schemeFn func([]byte) ([]byte, error)
@@ -411,6 +439,19 @@ root.decrypted = this.value.decode("hex").decrypt_aes("ctr", $key, $vector).stri
 				plaintext := make([]byte, len(b))
 				stream := cipher.NewCTR(block, iv)
 				stream.XORKeyStream(plaintext, b)
+				return plaintext, nil
+			}
+		case "gcm":
+			schemeFn = func(b []byte) ([]byte, error) {
+				plaintext := make([]byte, 0, len(b))
+				stream, err := cipher.NewGCM(block)
+				if err != nil {
+					return nil, fmt.Errorf("creating gcm failed: %w", err)
+				}
+				plaintext, err = stream.Open(plaintext, iv, b, nil)
+				if err != nil {
+					return nil, fmt.Errorf("gcm decrypting failed: %w", err)
+				}
 				return plaintext, nil
 			}
 		case "ofb":
@@ -630,7 +671,7 @@ var _ = registerSimpleMethod(
 		"format", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Use a value string as a format specifier in order to produce a new string, using any number of provided arguments. Please refer to the Go https://pkg.go.dev/fmt[`fmt` package documentation] for the list of valid format verbs.",
+		"Use a value string as a format specifier in order to produce a new string, using any number of provided arguments. Please refer to the Go https://pkg.go.dev/fmt[`fmt` package documentation^] for the list of valid format verbs.",
 		NewExampleSpec("",
 			`root.foo = "%s(%v): %v".format(this.name, this.age, this.fingers)`,
 			`{"name":"lance","age":37,"fingers":13}`,
@@ -720,7 +761,7 @@ var _ = registerSimpleMethod(
 		`
 Hashes a string or byte array according to a chosen algorithm and returns the result as a byte array. When mapping the result to a JSON field the value should be cast to a string using the method `+"xref:guides:bloblang/methods.adoc#string[`string`], or encoded using the method xref:guides:bloblang/methods.adoc#encode[`encode`]"+`, otherwise it will be base64 encoded by default.
 
-Available algorithms are: `+"`hmac_sha1`, `hmac_sha256`, `hmac_sha512`, `md5`, `sha1`, `sha256`, `sha512`, `xxhash64`, `crc32`"+`.
+Available algorithms are: `+"`hmac_sha1`, `hmac_sha256`, `hmac_sha512`, `md5`, `sha1`, `sha256`, `sha512`, `xxhash64`, `crc32`, `fnv32`"+`.
 
 The following algorithms require a key, which is specified as a second argument: `+"`hmac_sha1`, `hmac_sha256`, `hmac_sha512`"+`.`,
 		NewExampleSpec("",
@@ -830,6 +871,12 @@ root.h2 = this.value.hash(algorithm: "crc32", polynomial: "Koopman").encode("hex
 				}
 				_, _ = hasher.Write(b)
 				return hasher.Sum(nil), nil
+			}
+		case "fnv32":
+			hashFn = func(b []byte) ([]byte, error) {
+				h := fnv.New32()
+				_, _ = h.Write(b)
+				return []byte(strconv.FormatUint(uint64(h.Sum32()), 10)), nil
 			}
 		default:
 			return nil, fmt.Errorf("unrecognized hash type: %v", algorithmStr)
@@ -1207,6 +1254,22 @@ var _ = registerSimpleMethod(
 			`{"doc":{"foo":"bar"}}`,
 			`{"foo":"bar"}`,
 		),
+		NewExampleSpec("Escapes problematic HTML characters.",
+			`root = this.doc.format_json()`,
+			`{"doc":{"email":"foo&bar@benthos.dev","name":"foo>bar"}}`,
+			`{
+    "email": "foo\u0026bar@benthos.dev",
+    "name": "foo\u003ebar"
+}`,
+		),
+		NewExampleSpec("Set the `escape_html` parameter to false to disable escaping of problematic HTML characters.",
+			`root = this.doc.format_json(escape_html: false)`,
+			`{"doc":{"email":"foo&bar@benthos.dev","name":"foo>bar"}}`,
+			`{
+    "email": "foo&bar@benthos.dev",
+    "name": "foo>bar"
+}`,
+		),
 	).
 		Beta().
 		Param(ParamString(
@@ -1216,7 +1279,11 @@ var _ = registerSimpleMethod(
 		Param(ParamBool(
 			"no_indent",
 			"Disable indentation.",
-		).Default(false)),
+		).Default(false)).
+		Param(ParamBool(
+			"escape_html",
+			"Escape problematic HTML characters.",
+		).Default(true)),
 	func(args *ParsedParams) (simpleMethod, error) {
 		indentOpt, err := args.FieldOptionalString("indent")
 		if err != nil {
@@ -1230,11 +1297,29 @@ var _ = registerSimpleMethod(
 		if err != nil {
 			return nil, err
 		}
+		escapeHTMLOpt, err := args.FieldOptionalBool("escape_html")
+		if err != nil {
+			return nil, err
+		}
 		return func(v any, ctx FunctionContext) (any, error) {
-			if *noIndentOpt {
-				return json.Marshal(v)
+			buffer := &bytes.Buffer{}
+
+			encoder := json.NewEncoder(buffer)
+			if !*noIndentOpt {
+				encoder.SetIndent("", indent)
 			}
-			return json.MarshalIndent(v, "", indent)
+			if !*escapeHTMLOpt {
+				encoder.SetEscapeHTML(false)
+			}
+
+			if err := encoder.Encode(v); err != nil {
+				return nil, err
+			}
+
+			// This hack is here because `format_json()` initially relied on `json.Marshal()` or `json.MarshalIndent()`
+			// which don't add a trailing newline to the output and, also, other `format_*` methods in bloblang don't
+			// append a trailing newline.
+			return bytes.TrimRight(buffer.Bytes(), "\n"), nil
 		}, nil
 	},
 )
@@ -1246,8 +1331,8 @@ var _ = registerSimpleMethod(
 		MethodCategoryParsing, "",
 		NewExampleSpec("",
 			`root.foo_url = this.foo_url.parse_url()`,
-			`{"foo_url":"https://www.docs.redpanda.com/redpanda-connect/guides/bloblang/about/"}`,
-			`{"foo_url":{"fragment":"","host":"www.docs.redpanda.com","opaque":"","path":"/redpanda-connect/guides/bloblang/about/","raw_fragment":"","raw_path":"","raw_query":"","scheme":"https"}}`,
+			`{"foo_url":"https://docs.redpanda.com/redpanda-connect/guides/bloblang/about/"}`,
+			`{"foo_url":{"fragment":"","host":"docs.redpanda.com","opaque":"","path":"/redpanda-connect/guides/bloblang/about/","raw_fragment":"","raw_path":"","raw_query":"","scheme":"https"}}`,
 		),
 		NewExampleSpec("",
 			`root.username = this.url.parse_url().user.name | "unknown"`,

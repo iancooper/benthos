@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service_test
 
 import (
@@ -149,4 +151,40 @@ output:
 {"id":2,"purpose":"test resource outputs"}
 {"id":3,"purpose":"test resource outputs"}
 `, string(outBytes))
+}
+
+type testKeyTypeA int
+type testKeyTypeB int
+
+const testKeyA testKeyTypeA = iota
+const testKeyB testKeyTypeB = iota
+
+func TestResourcesGenericValues(t *testing.T) {
+	res := service.MockResources()
+
+	res.SetGeneric(testKeyA, "foo")
+	res.SetGeneric(testKeyB, "bar")
+
+	_, exists := res.GetGeneric("not a key")
+	assert.False(t, exists)
+
+	v, exists := res.GetGeneric(testKeyA)
+	assert.True(t, exists)
+	assert.Equal(t, "foo", v)
+
+	v, exists = res.GetGeneric(testKeyB)
+	assert.True(t, exists)
+	assert.Equal(t, "bar", v)
+}
+
+func TestResourcesGenericGetOrSet(t *testing.T) {
+	res := service.MockResources()
+
+	v, loaded := res.GetOrSetGeneric(testKeyA, "foo")
+	assert.False(t, loaded)
+	assert.Equal(t, "foo", v)
+
+	v, loaded = res.GetOrSetGeneric(testKeyA, "bar")
+	assert.True(t, loaded)
+	assert.Equal(t, "foo", v)
 }

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package bloblang
 
 import (
@@ -40,6 +42,13 @@ func ValueAsFloat64(v any) (float64, error) {
 // ValueAsFloat32 takes a boxed value and attempts to extract a number from it.
 func ValueAsFloat32(v any) (float32, error) {
 	return value.IGetFloat32(v)
+}
+
+// ValueAsBool takes a boxed value and attempts to extract a boolean from it.
+// Any numeric values are compared against 0, string and byte values are converted
+// using the same rules as `strconv.ParseBool`.
+func ValueAsBool(v any) (bool, error) {
+	return value.IToBool(v)
 }
 
 // ValueSanitized takes a boxed value of any type and attempts to convert it

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package pure
 
 import (
@@ -7,6 +9,7 @@ import (
 	"github.com/Jeffail/shutdown"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
 	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
 	"github.com/redpanda-data/benthos/v4/internal/log"
@@ -19,7 +22,7 @@ func inprocInputSpec() *service.ConfigSpec {
 		Stable().
 		Categories("Utility").
 		Description(`
-Directly connect to an output within a Benthos process by referencing it by a chosen ID. This allows you to hook up isolated streams whilst running Benthos in ` + "xref:guides:streams_mode/about.adoc[streams mode]" + `, it is NOT recommended that you connect the inputs of a stream with an output of the same stream, as feedback loops can lead to deadlocks in your message flow.
+Directly connect to an output within a Redpanda Connect process by referencing it by a chosen ID. This allows you to hook up isolated streams whilst running Redpanda Connect in ` + "xref:guides:streams_mode/about.adoc[streams mode]" + `, it is NOT recommended that you connect the inputs of a stream with an output of the same stream, as feedback loops can lead to deadlocks in your message flow.
 
 It is possible to connect multiple inputs to the same inproc ID, resulting in messages dispatching in a round-robin fashion to connected inputs. However, only one output can assume an inproc ID, and will replace existing outputs if a collision occurs.`).
 		Field(service.NewStringField("").Default(""))
@@ -108,8 +111,10 @@ func (i *inprocInput) TransactionChan() <-chan message.Transaction {
 	return i.transactions
 }
 
-func (i *inprocInput) Connected() bool {
-	return true
+func (i *inprocInput) ConnectionStatus() component.ConnectionStatuses {
+	return component.ConnectionStatuses{
+		component.ConnectionActive(i.mgr),
+	}
 }
 
 func (i *inprocInput) TriggerStopConsuming() {

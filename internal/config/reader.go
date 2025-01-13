@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package config
 
 import (
@@ -46,6 +48,9 @@ type Reader struct {
 	// The filesystem used for reading config files.
 	fs ifs.FS
 
+	// The function used for looking up environment variable interpolations.
+	envLookupFunc func(context.Context, string) (string, bool)
+
 	// Specs for various config types.
 	specFullConfig    docs.FieldSpecs
 	specStreamOnly    docs.FieldSpecs
@@ -92,8 +97,11 @@ func NewReader(mainPath string, resourcePaths []string, opts ...OptFunc) *Reader
 		mainPath = filepath.Clean(mainPath)
 	}
 	r := &Reader{
-		testSuffix:         "_benthos_test",
-		fs:                 ifs.OS(),
+		testSuffix: "_benthos_test",
+		fs:         ifs.OS(),
+		envLookupFunc: func(ctx context.Context, s string) (string, bool) {
+			return os.LookupEnv(s)
+		},
 		lintConf:           docs.NewLintConfig(bundle.GlobalEnvironment),
 		mainPath:           mainPath,
 		resourcePaths:      resourcePaths,
@@ -169,6 +177,13 @@ func OptSetStreamPaths(streamsPaths ...string) OptFunc {
 func OptUseFS(fs ifs.FS) OptFunc {
 	return func(r *Reader) {
 		r.fs = fs
+	}
+}
+
+// OptUseEnvLookupFunc overrides the default environment variable lookup func.
+func OptUseEnvLookupFunc(fn func(context.Context, string) (string, bool)) OptFunc {
+	return func(r *Reader) {
+		r.envLookupFunc = fn
 	}
 }
 
@@ -266,9 +281,9 @@ func applyOverrides(specs docs.FieldSpecs, root *yaml.Node, overrides ...string)
 			return fmt.Errorf("invalid set expression '%v': expected foo=bar syntax", override)
 		}
 
-		valNode := yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: value,
+		var valNode yaml.Node
+		if err := yaml.Unmarshal([]byte(value), &valNode); err != nil {
+			return fmt.Errorf("invalid set expression '%v': %w", override, err)
 		}
 		if err := specs.SetYAMLPath(bundle.GlobalEnvironment, root, &valNode, gabs.DotPathToSlice(path)...); err != nil {
 			return fmt.Errorf("failed to set config field override: %w", err)
@@ -289,7 +304,7 @@ func (r *Reader) readMain(mainPath string) (conf Type, pConf *docs.ParsedConfig,
 	if mainPath != "" {
 		var dLints []docs.Lint
 		var modTime time.Time
-		if confBytes, dLints, modTime, err = ReadFileEnvSwap(r.fs, mainPath, os.LookupEnv); err != nil {
+		if confBytes, dLints, modTime, err = r.ReadFileEnvSwap(context.TODO(), mainPath); err != nil {
 			return
 		}
 		for _, l := range dLints {

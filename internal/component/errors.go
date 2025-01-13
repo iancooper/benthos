@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package component
 
 import (
@@ -12,7 +14,7 @@ import (
 // it's guaranteed to succeed, so this error indicates that an assumption was
 // incorrect during the migration of certain components which will need to be
 // immediately addressed by maintainers.
-var ErrNotUnwrapped = errors.New("something has gone wrong during the registering of this component, please open an issue https://github.com/benthosdev/benthos/issues/new to let us know")
+var ErrNotUnwrapped = errors.New("something has gone wrong during the registering of this component, please open an issue https://github.com/redpanda-data/benthos/issues/new to let us know")
 
 type errInvalidType struct {
 	typeStr string
@@ -31,6 +33,8 @@ func ErrInvalidType(typeStr, tried string) error {
 		tried:   tried,
 	}
 }
+
+//------------------------------------------------------------------------------
 
 // Errors used throughout the codebase.
 var (

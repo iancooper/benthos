@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package retries
 
 import (
@@ -16,6 +18,7 @@ const (
 	crboFieldMaxElapsedTime = "max_elapsed_time"
 )
 
+// CommonRetryBackOffFields returns a list containing the retry backoff docs fields.
 func CommonRetryBackOffFields(
 	defaultMaxRetries int,
 	defaultInitInterval string,
@@ -50,6 +53,7 @@ func fieldDurationOrEmptyStr(pConf *service.ParsedConfig, path ...string) (time.
 	return pConf.FieldDuration(path...)
 }
 
+// CommonRetryBackOffCtorFromParsed extracts the retry backoff fields from the config and returns a retry backoff constructor.
 func CommonRetryBackOffCtorFromParsed(pConf *service.ParsedConfig) (ctor func() backoff.BackOff, err error) {
 	var maxRetries int
 	if maxRetries, err = pConf.FieldInt(crboFieldMaxRetries); err != nil {

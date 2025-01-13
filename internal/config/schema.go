@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package config
 
 import (
@@ -37,11 +39,14 @@ type Type struct {
 	rawSource any
 }
 
+// GetRawSource returns the Type raw source.
 func (t *Type) GetRawSource() any {
 	return t.rawSource
 }
 
-var httpField = docs.FieldObject(fieldHTTP, "Configures the service-wide HTTP server.").WithChildren(api.Spec()...)
+func httpField() docs.FieldSpec {
+	return docs.FieldObject(fieldHTTP, "Configures the service-wide HTTP server.").WithChildren(api.Spec()...)
+}
 
 func observabilityFields() docs.FieldSpecs {
 	defaultMetrics := "none"
@@ -58,13 +63,13 @@ func observabilityFields() docs.FieldSpecs {
 			"none": map[string]any{},
 		}),
 		docs.FieldString(fieldSystemCloseDelay, "A period of time to wait for metrics and traces to be pulled or pushed from the process.").HasDefault("0s"),
-		docs.FieldString(fieldSystemCloseTimeout, "The maximum period of time to wait for a clean shutdown. If this time is exceeded Benthos will forcefully close.").HasDefault("20s"),
+		docs.FieldString(fieldSystemCloseTimeout, "The maximum period of time to wait for a clean shutdown. If this time is exceeded Redpanda Connect will forcefully close.").HasDefault("20s"),
 	}
 }
 
 // Spec returns a docs.FieldSpec for an entire Benthos configuration.
 func Spec() docs.FieldSpecs {
-	fields := docs.FieldSpecs{httpField}
+	fields := docs.FieldSpecs{httpField()}
 	fields = append(fields, stream.Spec()...)
 	fields = append(fields, manager.Spec()...)
 	fields = append(fields, observabilityFields()...)
@@ -89,6 +94,7 @@ func SpecWithoutStream(spec docs.FieldSpecs) docs.FieldSpecs {
 	return fields
 }
 
+// FromParsed extracts the Benthos service fields from the parsed config and returns a Benthos service config.
 func FromParsed(prov docs.Provider, pConf *docs.ParsedConfig, rawSource any) (conf Type, err error) {
 	conf.rawSource = rawSource
 	if conf.Config, err = stream.FromParsed(prov, pConf, nil); err != nil {

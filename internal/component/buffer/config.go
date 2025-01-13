@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package buffer
 
 import (
@@ -24,6 +26,7 @@ func NewConfig() Config {
 	}
 }
 
+// FromAny returns a buffer config from a parsed config, yaml node or map.
 func FromAny(prov docs.Provider, value any) (conf Config, err error) {
 	switch t := value.(type) {
 	case Config:

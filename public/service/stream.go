@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -11,6 +13,7 @@ import (
 	"github.com/Jeffail/shutdown"
 
 	"github.com/redpanda-data/benthos/v4/internal/api"
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/manager"
@@ -52,6 +55,11 @@ func newStream(
 		shutSig: shutdown.NewSignaller(),
 		onStart: onStart,
 	}
+}
+
+// Resources returns a pointer to the common resources type of the stream.
+func (s *Stream) Resources() *Resources {
+	return newResourcesFromManager(s.mgr)
 }
 
 // Run attempts to start the stream pipeline and blocks until either the stream
@@ -178,4 +186,63 @@ func (s *Stream) Stop(ctx context.Context) (err error) {
 
 	err = closeHTTP(ctx)
 	return
+}
+
+//------------------------------------------------------------------------------
+
+// RunningStreamSummary represents a running stream and provides access to
+// information such as the connectivity status of the plugins running within.
+type RunningStreamSummary struct {
+	c common.RunningStream
+}
+
+// ConnectionStatus represents a current plugin component connection. The
+// component can be identified by the label and/or the path of the component as
+// found in a parsed config.
+type ConnectionStatus struct {
+	label     string
+	path      []string
+	connected bool
+	err       error
+}
+
+// Label returns the label of the component, or an empty string if omitted.
+func (c ConnectionStatus) Label() string {
+	return c.label
+}
+
+// Path returns the path of the component as found in a parsed config.
+func (c ConnectionStatus) Path() []string {
+	return c.path
+}
+
+// Active returns true if the connection is currently active.
+func (c ConnectionStatus) Active() bool {
+	return c.connected
+}
+
+// Err returns an error preventing the connection when appropriate. An inactive
+// connection may still yield a nil error in cases where the connection has not
+// yet been attempted (during initialisation) or if the connection was
+// intentionally closed (during shutdown).
+func (c ConnectionStatus) Err() error {
+	return c.err
+}
+
+// ConnectionStatuses returns a list of connection statuses, one for each
+// currently active plugin component. Not all components will yield a
+// connectivity status, this is true for all broker types and orchestration
+// components, but the child components they manage will yield where possible.
+func (r *RunningStreamSummary) ConnectionStatuses() []ConnectionStatus {
+	statuses := r.c.ConnectionStatus()
+	conns := make([]ConnectionStatus, 0, len(statuses))
+	for _, s := range statuses {
+		conns = append(conns, ConnectionStatus{
+			label:     s.Label,
+			path:      s.Path,
+			connected: s.Connected,
+			err:       s.Err,
+		})
+	}
+	return conns
 }
